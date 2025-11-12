@@ -238,7 +238,13 @@ This is a **model-invoked skill** - Claude automatically activates it when you m
 - "Analyze the design in my single-cell data file"
 
 **Permission-Free Execution:**
-The skill includes `allowed-tools` in its YAML frontmatter, which whitelists all helper scripts (h5ls, h5dump, bash helpers, Python scripts) so they run without requiring user permission. This enables a seamless, automated workflow.
+The skill includes `allowed-tools` in its YAML frontmatter, which whitelists all necessary commands:
+- HDF5 tools: `h5ls`, `h5dump`
+- Helper scripts: `./check_tools.sh`, `./list_factors.sh`, etc.
+- Python execution: `python`, `python3`
+- Shell utilities: `cat`, `echo` (for piping JSON to scripts)
+
+This enables a completely seamless, zero-permission workflow.
 
 ## About edviz Integration
 

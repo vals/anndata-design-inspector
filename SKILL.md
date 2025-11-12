@@ -11,6 +11,8 @@ allowed-tools:
   - Bash(./detect_nesting.sh:*)
   - Bash(python:*)
   - Bash(python3:*)
+  - Bash(cat:*)
+  - Bash(echo:*)
 ---
 
 # AnnData Design Inspector
