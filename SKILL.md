@@ -1,23 +1,47 @@
 ---
 name: anndata-design-inspector
 description: Inspects and visualizes experimental designs from AnnData .h5ad single-cell data files. Automatically extracts factors (genotypes, samples, cell types), detects design structure (nested vs crossed), generates edviz grammar notation, and creates professional visualizations. Use when analyzing h5ad files to understand experimental design structure.
-allowed-tools:
-  - Bash(h5ls:*)
-  - Bash(h5dump:*)
-  - Bash(./check_tools.sh:*)
-  - Bash(./list_factors.sh:*)
-  - Bash(./extract_categories.sh:*)
-  - Bash(./count_cells.sh:*)
-  - Bash(./detect_nesting.sh:*)
-  - Bash(python:*)
-  - Bash(python3:*)
-  - Bash(cat:*)
-  - Bash(echo:*)
+allowed-tools: Bash, Read, Glob, Grep
 ---
 
 # AnnData Design Inspector
 
 You are a specialized agent for inspecting and visualizing experimental designs from AnnData `.h5ad` files.
+
+## Workflow Overview
+
+When a user provides an h5ad file, follow these steps:
+1. **Locate skill directory** to find helper scripts
+2. **Validate file** and check HDF5 tools are installed
+3. **Extract factors** using list_factors.sh
+4. **Get categories & counts** for each factor using extract_categories.sh and count_cells.sh
+5. **Detect design structure** using detect_nesting.sh
+6. **Generate edviz grammar** using design_to_grammar.py
+7. **Visualize** the design structure
+8. **Present results** with clear summary and visualizations
+
+## Step 0: Locate the Skill Directory
+
+CRITICAL: Before doing anything else, locate where the skill scripts are installed. The skill may be installed as a project skill or personal skill.
+
+```bash
+# Find the skill directory
+SKILL_DIR=""
+if [ -d ".claude/skills/anndata-design-inspector" ]; then
+    SKILL_DIR="$(pwd)/.claude/skills/anndata-design-inspector"
+elif [ -d "$HOME/.claude/skills/anndata-design-inspector" ]; then
+    SKILL_DIR="$HOME/.claude/skills/anndata-design-inspector"
+fi
+
+if [ -z "$SKILL_DIR" ] || [ ! -d "$SKILL_DIR" ]; then
+    echo "Error: Cannot locate anndata-design-inspector skill directory" >&2
+    exit 1
+fi
+
+echo "Skill directory: $SKILL_DIR"
+```
+
+**IMPORTANT**: All subsequent script references in this skill MUST use `$SKILL_DIR/script_name.sh` format. Store this path and use it throughout the analysis.
 
 ## Prerequisites: Check for Required Tools
 
@@ -71,12 +95,12 @@ Expected groups in AnnData files:
 
 ### Step 3: Identify Experimental Design Factors
 
-List all fields in the `obs` group to find categorical variables:
+Use the helper script to list all categorical factors:
 ```bash
-h5ls <file_path>/obs
+"$SKILL_DIR/list_factors.sh" <file_path>
 ```
 
-Look for Groups (not Datasets) - these are typically categorical variables representing:
+This will output all categorical variables (Groups in /obs) such as:
 - Sample IDs
 - Genotypes/conditions
 - Cell types
@@ -89,7 +113,7 @@ Look for Groups (not Datasets) - these are typically categorical variables repre
 Before proceeding with detailed extraction, ensure the edviz package is available for grammar-based visualization:
 
 ```bash
-python scripts/check_edviz.py
+python "$SKILL_DIR/scripts/check_edviz.py"
 ```
 
 This script will:
@@ -101,23 +125,23 @@ If installation fails, the skill will continue with basic visualization (without
 
 ### Step 4: Extract Category Information
 
-For each categorical Group found in `/obs`, explore its structure:
+For each categorical factor found, extract its category names:
 ```bash
-h5ls <file_path>/obs/<variable_name>
+"$SKILL_DIR/extract_categories.sh" <file_path> <factor_name>
 ```
 
-You should see:
-- `categories`: The unique category labels
-- `codes`: Integer indices for each cell
+This extracts and cleans the category labels for the specified factor.
 
-Extract the actual category names:
+### Step 5: Count Cells Per Category
+
+Get cell counts for each category in a factor:
 ```bash
-h5dump -d "/obs/<variable_name>/categories" <file_path> 2>/dev/null | grep -A 20 "DATA"
+"$SKILL_DIR/count_cells.sh" <file_path> <factor_name>
 ```
 
-### Step 5: Count Cells
+This outputs category:count pairs (e.g., "KeapKO_tumor_1:5103").
 
-Get the total number of cells by checking the `_index` dataset:
+To get total cells:
 ```bash
 h5ls <file_path>/obs/_index
 ```
@@ -184,28 +208,30 @@ h5dump -d "/obs/<factor_name>/codes" <file_path> 2>/dev/null | grep -A 50 "DATA 
 
 ### Step 8: Detect Nested vs Crossed Design
 
+Use the helper script to detect whether factors are nested or crossed:
+
+```bash
+"$SKILL_DIR/detect_nesting.sh" <file_path> <factor_a> <factor_b>
+```
+
+This returns either "nested" or "crossed" based on naming pattern analysis.
+
 **Crossed/Factorial Design**: Each level of Factor A appears with each level of Factor B
 - Example: genotype × timepoint where all genotypes appear at all timepoints
 
 **Nested/Hierarchical Design**: Levels of Factor B only appear within specific levels of Factor A
 - Example: samples nested within genotype (sample names indicate their parent genotype)
-- Notation: sample[genotype] or sample:genotype
 
-**Detection Strategy**:
+**Detection Strategy** (implemented in detect_nesting.sh):
+- Checks if factor B values contain factor A values in their names
+- Example: "KeapKO_tumor_1" contains "KeapKO" → sample is nested in genotype
+- Uses case-insensitive substring matching
+- Returns "nested" if >50% of B categories contain A category names
 
-1. **Check factor naming patterns** first (fastest heuristic):
-   - If factor B values contain factor A values in their names → likely nested
-   - Example: "KeapKO_tumor_1" contains "KeapKO" → sample nested in genotype
-
-2. **Logical hierarchy** (biological reasoning):
-   - Samples are always the most specific/nested level
-   - Biological replicates are nested within conditions
-   - Batch effects nest everything
-   - Cell types are measured variables (not design factors for nesting)
-
-3. **For ambiguous cases**, examine the codes:
-   - Compare which combinations actually exist in the data
-   - Count unique combinations vs expected combinations
+**Biological hierarchy guidelines**:
+- Samples are usually the most specific/nested level
+- Biological replicates are nested within conditions
+- Cell types are measured variables (use classification `:` operator, not nesting)
 
 ### Step 9: Build Design Hierarchy
 
@@ -266,7 +292,7 @@ After building the design hierarchy, convert the detected structure to edviz gra
 
 **Convert to grammar**:
 ```bash
-echo '<json_string>' | python scripts/design_to_grammar.py -
+echo '<json_string>' | python "$SKILL_DIR/scripts/design_to_grammar.py" -
 ```
 
 This will output a grammar string like:

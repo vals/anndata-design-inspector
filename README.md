@@ -15,18 +15,18 @@ This skill uses HDF5 command-line tools (`h5ls` and `h5dump`) to extract experim
 
 ## Files
 
-- **SKILL.md** - Main skill definition for Claude Code (with required YAML frontmatter)
+- **SKILL.md** - Main skill definition with YAML frontmatter and workflow instructions
 - **TESTING.md** - Comprehensive testing guide
-- **create_test_data.py** - Generate test .h5ad file
+- **create_test_data.py** - Generate test .h5ad file with nested experimental design
 - **Python Scripts:**
   - `scripts/check_edviz.py` - Check for and auto-install edviz from GitHub
-  - `scripts/design_to_grammar.py` - Convert design structure to edviz grammar
-- **Bash Helper Scripts:**
-  - `check_tools.sh` - Check if HDF5 tools are installed
+  - `scripts/design_to_grammar.py` - Convert design structure to edviz grammar notation
+- **Helper Scripts** (automatically located via $SKILL_DIR):
   - `list_factors.sh` - List all categorical factors in a file
   - `extract_categories.sh` - Extract category names from a factor
   - `count_cells.sh` - Count cells per category
   - `detect_nesting.sh` - Detect if factors are nested or crossed
+  - `check_tools.sh` - Check if HDF5 tools are installed
 
 ## Prerequisites
 
@@ -237,14 +237,14 @@ This is a **model-invoked skill** - Claude automatically activates it when you m
 - "What's the structure of experiment.h5ad?"
 - "Analyze the design in my single-cell data file"
 
-**Permission-Free Execution:**
-The skill includes `allowed-tools` in its YAML frontmatter, which whitelists all necessary commands:
-- HDF5 tools: `h5ls`, `h5dump`
-- Helper scripts: `./check_tools.sh`, `./list_factors.sh`, etc.
-- Python execution: `python`, `python3`
-- Shell utilities: `cat`, `echo` (for piping JSON to scripts)
+**Allowed Tools:**
+The skill uses `allowed-tools: Bash, Read, Glob, Grep` in its YAML frontmatter, which restricts Claude to:
+- **Bash** - Execute shell commands (h5ls, h5dump, python, helper scripts)
+- **Read** - Read file contents
+- **Glob** - Find files by pattern
+- **Grep** - Search within files
 
-This enables a completely seamless, zero-permission workflow.
+This focused set of tools is sufficient for analyzing h5ad files while maintaining appropriate guardrails.
 
 ## About edviz Integration
 
