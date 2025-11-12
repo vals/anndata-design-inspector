@@ -1,3 +1,18 @@
+---
+name: anndata-design-inspector
+description: Inspects and visualizes experimental designs from AnnData .h5ad single-cell data files. Automatically extracts factors (genotypes, samples, cell types), detects design structure (nested vs crossed), generates edviz grammar notation, and creates professional visualizations. Use when analyzing h5ad files to understand experimental design structure.
+allowed-tools:
+  - Bash(h5ls:*)
+  - Bash(h5dump:*)
+  - Bash(./check_tools.sh:*)
+  - Bash(./list_factors.sh:*)
+  - Bash(./extract_categories.sh:*)
+  - Bash(./count_cells.sh:*)
+  - Bash(./detect_nesting.sh:*)
+  - Bash(python:*)
+  - Bash(python3:*)
+---
+
 # AnnData Design Inspector
 
 You are a specialized agent for inspecting and visualizing experimental designs from AnnData `.h5ad` files.
@@ -66,6 +81,21 @@ Look for Groups (not Datasets) - these are typically categorical variables repre
 - Batch information
 - Time points
 - Treatments
+
+### Step 3a: Check and Install edviz
+
+Before proceeding with detailed extraction, ensure the edviz package is available for grammar-based visualization:
+
+```bash
+python scripts/check_edviz.py
+```
+
+This script will:
+- Check if edviz is already installed
+- If not, automatically install it from GitHub (https://github.com/vals/edviz)
+- Report success or failure
+
+If installation fails, the skill will continue with basic visualization (without edviz grammar output).
 
 ### Step 4: Extract Category Information
 
@@ -189,44 +219,127 @@ For the hierarchical structure:
 2. Identify which factors are nested within it
 3. Continue down to the most specific level (usually samples)
 
-### Step 10: Render Appropriate Visualization
+### Step 10: Generate edviz Grammar String
 
-Choose visualization based on design structure:
+After building the design hierarchy, convert the detected structure to edviz grammar format. This provides a standardized, machine-readable representation of the experimental design.
 
-#### For Hierarchical/Nested Designs: Draw a Tree
+**Create a JSON structure** with the detected design information:
+
+```json
+{
+  "factors": {
+    "genotype": {
+      "categories": ["KeapKO", "KeapWT"],
+      "counts": [10708, 10709],
+      "type": "experimental"
+    },
+    "sample": {
+      "categories": ["KeapKO_tumor_1", "KeapKO_tumor_2", "KeapWT_tumor_1", "KeapWT_tumor_2"],
+      "counts": [5354, 5354, 5354, 5355],
+      "type": "replicate"
+    },
+    "cell_type": {
+      "categories": ["CAF", "DC", "Macrophages", "NK cells", "Neutrophils", "Tumor cells"],
+      "counts": [2690, 740, 5993, 968, 1680, 9346],
+      "type": "classification"
+    }
+  },
+  "relationships": [
+    {"parent": "genotype", "child": "sample", "type": "nested"},
+    {"factor": "sample", "classifier": "cell_type", "type": "classification"}
+  ]
+}
+```
+
+**Factor types**:
+- `experimental`: Top-level treatment/condition factors
+- `replicate`: Sample/replicate identifiers
+- `classification`: Measured variables (like cell types)
+- `batch`: Technical batch effects
+
+**Relationship types**:
+- `nested`: Hierarchical containment (parent > child)
+- `crossed`: Factorial crossing (factor1 × factor2)
+- `classification`: Labeling/categorization (factor : classifier)
+
+**Convert to grammar**:
+```bash
+echo '<json_string>' | python scripts/design_to_grammar.py -
+```
+
+This will output a grammar string like:
+```
+Genotype(2) > Sample(4) : Cell Type(6)
+```
+
+**edviz Grammar Operators**:
+- `>` (nesting): Parent(n) > Child(m)
+- `×` (crossing): Factor1(n) × Factor2(m)
+- `:` (classification): Sample(n) : CellType(m)
+- `(n)` balanced counts
+- `[n1|n2|n3]` unbalanced counts
+- `~nk` approximate large counts (e.g., ~21k cells)
+
+### Step 11: Visualize with edviz
+
+Use edviz to generate a professional visualization of the experimental design from the grammar string.
+
+**Python script to generate visualization**:
+
+```python
+from edviz import ExperimentalDesign
+
+# Parse the grammar string
+grammar = "Genotype(2) > Sample(4) : Cell Type(6)"  # Use the string from Step 10
+design = ExperimentalDesign.from_grammar(grammar)
+
+# Generate ASCII diagram
+print(design.ascii_diagram())
+
+# Optional: Get human-readable description
+print(design.describe())
+
+# Optional: Count total observations
+print(f"Total observations: {design.count_observations()}")
+```
+
+**Running the visualization**:
+```bash
+python3 -c "
+from edviz import ExperimentalDesign
+design = ExperimentalDesign.from_grammar('${GRAMMAR_STRING}')
+print(design.ascii_diagram())
+"
+```
+
+**Expected output**: edviz will automatically choose the appropriate visualization style (tree for nested, grid for crossed designs) with professional formatting.
+
+**Fallback**: If edviz is not available or fails, you can still create a simple custom visualization:
+
+#### For Hierarchical/Nested Designs: Simple Tree
 
 ```
-Example Tree Format:
-
-                    Experimental Design
-                            │
-                ┌───────────┴───────────┐
-             KeapKO                  KeapWT
-             (n=10,233)             (n=11,184)
-                │                       │
-          ┌─────┴─────┐           ┌─────┴─────┐
-      tumor_1     tumor_2      tumor_1     tumor_2
-      (n=5,342)   (n=4,891)    (n=5,928)   (n=5,256)
+Experimental Design
+  │
+  ├─ KeapKO (n=10,233)
+  │   ├─ tumor_1 (n=5,342)
+  │   └─ tumor_2 (n=4,891)
+  │
+  └─ KeapWT (n=11,184)
+      ├─ tumor_1 (n=5,928)
+      └─ tumor_2 (n=5,256)
 ```
 
-**Implementation**: Use ASCII box-drawing characters:
-- `│` vertical line
-- `─` horizontal line
-- `┌` `┐` `└` `┘` corners
-- `├` `┤` `┬` `┴` `┼` connectors
-
-#### For Crossed/Factorial Designs: Draw a Grid
+#### For Crossed/Factorial Designs: Simple Grid
 
 ```
-Example Grid Format:
-
 Genotype │  Timepoint 0h  │  Timepoint 24h │  Timepoint 48h
 ─────────┼────────────────┼────────────────┼─────────────────
 KeapKO   │  KO_T0 (3,421) │  KO_T24 (3,892)│  KO_T48 (4,102)
 KeapWT   │  WT_T0 (3,158) │  WT_T24 (3,744)│  WT_T48 (3,891)
 ```
 
-### Step 11: Add Cell Count Distribution
+### Step 12: Add Cell Count Distribution
 
 After the structure visualization, show how cells are distributed:
 
@@ -289,6 +402,12 @@ Experimental Factors Detected:
   • leiden (15 clusters): analysis-derived
 
 Design Structure: Hierarchical (Nested)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+edviz Grammar:
+  Genotype(2) > Sample(4) : Cell Type(6)
+
+Visualization (generated by edviz):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
                     Experimental Design
