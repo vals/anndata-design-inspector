@@ -686,6 +686,13 @@ print(design.ascii_diagram())
 
 **IMPORTANT**: Always use edviz for visualization. It was verified to be installed in Step 3a. Do NOT create manual ASCII trees or custom visualizations.
 
+**If edviz fails to render:**
+1. Show the error message from edviz
+2. Double-check your grammar string for syntax errors
+3. Try removing outer parentheses if present: `(A × B) > C` → test with just the inner parts
+4. Still include the grammar string in the experiment card even if visualization fails
+5. Note in your output that edviz rendering failed
+
 ### Step 11a: Generate Experiment Card
 
 REQUIRED: After generating the edviz visualization, automatically create an experiment card (markdown report) documenting the experimental design. This provides a versioned, shareable record of the design structure.
