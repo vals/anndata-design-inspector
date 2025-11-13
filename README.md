@@ -11,6 +11,7 @@ This skill uses HDF5 command-line tools (`h5ls` and `h5dump`) to extract experim
 - **Fast extraction**: Uses HDF5 command-line tools (no need to load entire file into memory)
 - **Grammar-based representation**: Outputs designs in edviz's standardized DSL
 - **Automatic visualization**: Generates appropriate diagrams (trees for nested, grids for factorial designs)
+- **Experiment card generation**: Produces markdown documentation with design structure, analysis recommendations, and metadata
 - **Auto-installation**: Automatically installs edviz from GitHub when needed
 
 ## Files
@@ -21,6 +22,7 @@ This skill uses HDF5 command-line tools (`h5ls` and `h5dump`) to extract experim
 - **Python Scripts:**
   - `scripts/check_edviz.py` - Check for and auto-install edviz from GitHub
   - `scripts/design_to_grammar.py` - Convert design structure to edviz grammar notation
+  - `scripts/generate_experiment_card.py` - Generate markdown experiment card documenting the design
 - **Helper Scripts** (automatically located via $SKILL_DIR):
   - `list_factors.sh` - List all categorical factors in a file
   - `extract_categories.sh` - Extract category names from a factor
@@ -123,8 +125,9 @@ The skill automatically:
 4. Extracts categories and cell counts
 5. Detects design structure (nested vs crossed)
 6. Generates edviz grammar string representing the design
-7. Renders visualizations using edviz (or fallback to custom ASCII diagrams)
-8. Shows cell count distributions
+7. Renders visualizations using edviz
+8. Creates an experiment card (markdown documentation file)
+9. Shows cell count distributions
 
 ### edviz Grammar
 

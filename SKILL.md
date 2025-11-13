@@ -1,6 +1,6 @@
 ---
 name: anndata-design-inspector
-description: Inspects and visualizes experimental designs from AnnData .h5ad single-cell data files. Automatically extracts factors (genotypes, samples, cell types), detects design structure (nested vs crossed), generates edviz grammar notation, and creates professional visualizations. Use when analyzing h5ad files to understand experimental design structure.
+description: Inspects and visualizes experimental designs from AnnData .h5ad single-cell data files. Automatically extracts factors (genotypes, samples, cell types), detects design structure (nested vs crossed), generates edviz grammar notation, creates professional visualizations, and produces experiment card documentation. Use when analyzing h5ad files to understand experimental design structure.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
@@ -18,7 +18,8 @@ When a user provides an h5ad file, follow these steps:
 5. **Detect design structure** using detect_nesting.sh
 6. **Generate edviz grammar** using design_to_grammar.py
 7. **Visualize** the design structure
-8. **Present results** with clear summary and visualizations
+8. **Generate experiment card** (markdown report documenting the design)
+9. **Present results** with clear summary and visualizations
 
 **Important Resources**:
 - **GRAMMAR.md**: Full edviz grammar specification with operator semantics, validation rules, and examples
@@ -412,6 +413,64 @@ print(design.ascii_diagram())
 - Mixed designs → Combined visualization
 
 **IMPORTANT**: Always use edviz for visualization. It was verified to be installed in Step 3a. Do NOT create manual ASCII trees or custom visualizations.
+
+### Step 11a: Generate Experiment Card
+
+REQUIRED: After generating the edviz visualization, automatically create an experiment card (markdown report) documenting the experimental design. This provides a versioned, shareable record of the design structure.
+
+**Create the input JSON for the experiment card:**
+
+Build a JSON structure containing all the design information collected in previous steps:
+
+```json
+{
+  "h5ad_file": "<file_path>",
+  "total_cells": <total_cells>,
+  "design_type": "<design_type>",
+  "edviz_grammar": "<grammar_string_from_step_10>",
+  "edviz_diagram": "<ascii_diagram_from_step_11>",
+  "factors": {
+    "<factor_name>": {
+      "categories": ["cat1", "cat2", ...],
+      "counts": [n1, n2, ...],
+      "type": "experimental|replicate|classification|batch"
+    },
+    ...
+  },
+  "relationships": [
+    {"parent": "factor1", "child": "factor2", "type": "nested"},
+    {"factor": "factor1", "classifier": "cell_type", "type": "classification"},
+    ...
+  ],
+  "design_notes": ["optional notes about ambiguities"],
+  "tool_version": "0.1.0"
+}
+```
+
+**Generate the experiment card:**
+
+```bash
+# Create output filename based on input h5ad file
+OUTPUT_FILE="${H5AD_FILE%.h5ad}_experiment_card.md"
+
+# Generate the card
+echo '<json_string>' | python "$SKILL_DIR/scripts/generate_experiment_card.py" - "$OUTPUT_FILE"
+```
+
+The experiment card will be saved alongside the h5ad file with the naming convention: `<filename>_experiment_card.md`
+
+**What the experiment card includes:**
+- YAML frontmatter with machine-readable metadata
+- Dataset information (file path, date, cell counts)
+- Identified factors table
+- Design classification (nested/crossed/factorial)
+- edviz ASCII diagram
+- edviz grammar notation in code block
+- Cell distribution summary statistics
+- Analysis considerations (design-specific recommendations)
+- Design notes (if any ambiguities were detected)
+
+**IMPORTANT**: Always generate the experiment card. This provides documentation that can be version controlled, shared with collaborators, and referenced in publications.
 
 ### Step 12: Add Cell Count Distribution
 
