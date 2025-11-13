@@ -16,11 +16,12 @@ When a user provides an h5ad file, follow these steps:
 3. **Extract factors** using list_factors.sh
 4. **Get categories & counts** for each factor using extract_categories.sh and count_cells.sh
 5. **Detect species** by exploring .var columns and analyzing gene naming patterns
-6. **Detect design structure** using detect_nesting.sh
-7. **Generate edviz grammar** using design_to_grammar.py
-8. **Visualize** the design structure
-9. **Generate experiment card** (markdown report documenting the design)
-10. **Present results** with clear summary and visualizations
+6. **Reason about experimental factors** - understand biological/experimental meaning
+7. **Detect design structure** using detect_nesting.sh
+8. **Generate edviz grammar** using design_to_grammar.py (include ALL experimental factors)
+9. **Visualize** the design structure
+10. **Generate experiment card** (markdown report documenting the design)
+11. **Present results** with clear summary and visualizations
 
 **Important Resources**:
 - **GRAMMAR.md**: Full edviz grammar specification with operator semantics, validation rules, and examples
@@ -196,6 +197,39 @@ Examine which pattern is most common across the samples. If the dominant pattern
 
 Choose the column with the clearest gene naming pattern (prefer gene symbols over Ensembl IDs or numeric identifiers).
 
+### Step 5b: Reason About Experimental Factors
+
+After identifying all factors, analyze their names and categories to understand the biological/experimental context:
+
+**For each factor, consider:**
+1. **What type of experimental manipulation does this represent?**
+   - Treatment/drug (e.g., PBS, R848, UNTX, compound names)
+   - Genotype/genetic perturbation (e.g., WT, KO, mutation names)
+   - Timepoint/temporal dimension (e.g., 0h, 24h, day1, day7)
+   - Tissue/organ type (e.g., liver, brain, tumor)
+   - Cell line or organism ID
+   - Technical batch information
+
+2. **What is the biological/experimental meaning?**
+   - Look up unfamiliar terms (e.g., "R848" is a TLR7/8 agonist used to stimulate immune response)
+   - Understand the experimental question (e.g., comparing treated vs control, genotype effects, time course)
+   - Identify control conditions (PBS, UNTX, WT, vehicle, etc.)
+
+3. **Is this a real experimental factor or a technical identifier?**
+   - **Experimental factors** (genotype, treatment, timepoint, tissue) → MUST be in the grammar
+   - **Replicates/samples** (sample_1, sample_2, mouse_A, mouse_B) → Include in grammar as nested level
+   - **Technical factors** (batch, sequencing_run) → Include if relevant to design
+   - **Classification/measurement** (cell_type, cluster, annotation) → Use `:` operator
+
+**Present a brief experimental context summary:**
+```
+Experimental Context:
+This appears to be a [type of experiment] comparing [factors].
+- Factor X: [biological meaning and levels]
+- Factor Y: [biological meaning and levels]
+Research question: [inferred question being addressed]
+```
+
 ### Step 6: Summarize the Experimental Design
 
 After gathering all the information, present a clear summary:
@@ -279,9 +313,15 @@ This returns either "nested" or "crossed" based on naming pattern analysis.
 - Returns "nested" if >50% of B categories contain A category names
 
 **Biological hierarchy guidelines**:
-- Samples are usually the most specific/nested level
-- Biological replicates are nested within conditions
+- **ALL experimental factors** (treatment, genotype, timepoint, tissue, etc.) MUST be included in the grammar
+- Samples/replicates are usually the most specific/nested level
+- Biological replicates are nested within experimental conditions
 - Cell types are measured variables (use classification `:` operator, not nesting)
+
+**IMPORTANT**: Do NOT exclude experimental factors from the grammar with notes like "treatment is a sample-level factor, not shown". If treatment varies between samples, represent it properly:
+- If treatments are crossed with other factors: `Genotype(2) × Treatment(3) > Sample(6)`
+- If samples are nested in treatments: `Treatment(3) > Sample(n per treatment)`
+- If sample names encode treatment, the treatment factor should still appear explicitly in the grammar
 
 ### Step 9: Build Design Hierarchy
 
@@ -369,11 +409,50 @@ After building the design hierarchy, convert the detected structure to edviz gra
 ```
 Note: genotype and timepoint are automatically crossed (no relationship needed) because neither is a child in a nested relationship.
 
+**Example 3: Treatment with samples nested** (different samples per treatment):
+```json
+{
+  "factors": {
+    "treatment": {
+      "categories": ["PBS", "R848", "UNTX"],
+      "counts": [4000, 4000, 4000],
+      "type": "experimental"
+    },
+    "sample": {
+      "categories": ["sample_PBS_1", "sample_PBS_2", "sample_R848_1", "sample_R848_2", "sample_UNTX_1", "sample_UNTX_2"],
+      "counts": [2000, 2000, 2000, 2000, 2000, 2000],
+      "type": "replicate"
+    },
+    "cell_type": {
+      "categories": ["T_cell", "B_cell", "Myeloid"],
+      "counts": [4000, 4000, 4000],
+      "type": "classification"
+    }
+  },
+  "relationships": [
+    {"parent": "treatment", "child": "sample", "type": "nested"},
+    {"factor": "sample", "classifier": "cell_type", "type": "classification"}
+  ],
+  "experimental_context": {
+    "experiment_type": "Immune stimulation study",
+    "research_question": "How do different immune stimuli affect immune cell populations?",
+    "factor_descriptions": {
+      "treatment": "Three experimental conditions: PBS (vehicle control), R848 (TLR7/8 agonist for immune stimulation), and UNTX (untreated control)",
+      "sample": "Biological replicates (2 per treatment condition)",
+      "cell_type": "Major immune cell populations identified by marker expression"
+    }
+  }
+}
+```
+Grammar: `Treatment(3) > Sample(6) : CellType(3)` or `Treatment(3) > Sample(2) : CellType(3)` depending on balanced replicates
+
 **Factor types**:
-- `experimental`: Top-level treatment/condition factors
-- `replicate`: Sample/replicate identifiers
-- `classification`: Measured variables (like cell types)
+- `experimental`: Treatment/condition factors that represent experimental manipulations (genotype, treatment, timepoint, tissue, etc.). These MUST always appear in the grammar.
+- `replicate`: Sample/replicate identifiers (often nested within experimental factors)
+- `classification`: Measured variables (like cell types) - use with `:` operator
 - `batch`: Technical batch effects
+
+**CRITICAL**: All `experimental` type factors MUST be represented in the grammar. Do not exclude them with notes about being "sample-level" or similar. Find the appropriate operator (`×`, `>`) to represent their relationship to other factors.
 
 **Relationship types**:
 - `nested`: Hierarchical containment (parent > child). Use when factor B only appears within specific levels of factor A.
@@ -465,6 +544,14 @@ Build a JSON structure containing all the design information collected in previo
   "design_type": "<design_type>",
   "edviz_grammar": "<grammar_string_from_step_10>",
   "edviz_diagram": "<ascii_diagram_from_step_11>",
+  "experimental_context": {
+    "experiment_type": "<inferred experiment type>",
+    "research_question": "<inferred research question>",
+    "factor_descriptions": {
+      "<factor_name>": "<biological/experimental meaning>",
+      ...
+    }
+  },
   "factors": {
     "<factor_name>": {
       "categories": ["cat1", "cat2", ...],

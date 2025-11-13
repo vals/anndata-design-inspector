@@ -143,6 +143,7 @@ def generate_experiment_card(data: Dict[str, Any]) -> str:
     species = data.get("species", "unknown")
     edviz_grammar = data.get("edviz_grammar", "")
     edviz_diagram = data.get("edviz_diagram", "")
+    experimental_context = data.get("experimental_context", {})
     factors = data.get("factors", {})
     relationships = data.get("relationships", [])
     design_notes = data.get("design_notes", [])
@@ -185,6 +186,28 @@ tool_version: "{tool_version}"
 **Species:** {species_display}
 **Total Cells:** {format_number(total_cells)}
 """
+
+    # Build Experimental Context section (if available)
+    context_section = ""
+    if experimental_context:
+        experiment_type = experimental_context.get("experiment_type", "")
+        research_question = experimental_context.get("research_question", "")
+        factor_descriptions = experimental_context.get("factor_descriptions", {})
+
+        if experiment_type or research_question or factor_descriptions:
+            context_section = "\n## Experimental Context\n\n"
+
+            if experiment_type:
+                context_section += f"**Experiment Type:** {experiment_type}\n\n"
+
+            if research_question:
+                context_section += f"**Research Question:** {research_question}\n\n"
+
+            if factor_descriptions:
+                context_section += "**Factor Descriptions:**\n\n"
+                for factor, description in factor_descriptions.items():
+                    context_section += f"- **{to_title_case(factor)}**: {description}\n"
+                context_section += "\n"
 
     # Build Identified Factors table
     factors_table = "\n### Identified Factors\n\n"
@@ -261,6 +284,8 @@ tool_version: "{tool_version}"
     # Combine all sections
     card = frontmatter
     card += dataset_section
+    if context_section:
+        card += context_section
     card += "\n## Design Structure\n"
     card += factors_table
     card += classification_text
