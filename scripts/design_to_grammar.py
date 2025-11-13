@@ -220,6 +220,15 @@ def build_grammar_recursive(factor: str, factors: Dict[str, Any],
     return grammar
 
 
+def get_parents(factor: str, relationships: List[Dict[str, str]]) -> List[str]:
+    """Get parent factors for a given child factor."""
+    parents = []
+    for rel in relationships:
+        if rel.get("type") == "nested" and rel.get("child") == factor:
+            parents.append(rel["parent"])
+    return parents
+
+
 def convert_design_to_grammar(design: Dict[str, Any]) -> str:
     """
     Convert design structure to edviz grammar string.
@@ -239,7 +248,52 @@ def convert_design_to_grammar(design: Dict[str, Any]) -> str:
     if not roots:
         raise ValueError("No root factors found - possible circular dependency")
 
-    # Build grammar for each root
+    # Check if roots share a common child (indicating they should be crossed)
+    # Find all children of roots
+    all_children = set()
+    for root in roots:
+        children = get_children(root, relationships)
+        all_children.update(children)
+
+    # Check if any child has multiple parents (indicating crossed design)
+    shared_children = []
+    for child in all_children:
+        parents = get_parents(child, relationships)
+        if len(parents) > 1:
+            shared_children.append(child)
+
+    if shared_children and len(roots) > 1:
+        # Multiple roots with shared children - group roots with parentheses
+        # Build grammar for roots only (no descendants)
+        root_parts = []
+        for root in roots:
+            factor_data = factors[root]
+            root_parts.append(format_factor_counts(
+                root,
+                factor_data["categories"],
+                factor_data["counts"],
+                approximate=False
+            ))
+
+        # Cross the roots - parentheses needed because > has higher precedence than ×
+        # Without parentheses, A × B > C would parse as A × (B > C)
+        # With parentheses, (A × B) > C groups the crossing first
+        crossed_roots = " × ".join(root_parts)
+        if len(root_parts) > 1:
+            crossed_roots = f"{crossed_roots}"  # Note: parentheses added around full expression below
+
+        # Now add the shared child and its descendants
+        # Use the first shared child (assume they all follow same pattern)
+        child = shared_children[0]
+        child_grammar = build_grammar_recursive(child, factors, relationships)
+
+        # Only add parentheses if we have more than one root
+        if len(root_parts) > 1:
+            return f"({crossed_roots}) > {child_grammar}"
+        else:
+            return f"{crossed_roots} > {child_grammar}"
+
+    # Build grammar for each root independently
     root_grammars = []
     for root in roots:
         root_grammar = build_grammar_recursive(root, factors, relationships)

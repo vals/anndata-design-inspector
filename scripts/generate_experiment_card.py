@@ -260,14 +260,29 @@ tool_version: "{tool_version}"
     grammar_section += "\n```\n"
 
     # Build Cell Distribution section
-    distribution_section = "\n## Cell Distribution\n\n"
+    distribution_section = "\n## Distribution Summary\n\n"
 
     for fname, fdata in factors.items():
         counts = fdata.get("counts", [])
+        ftype = fdata.get("type", "")
+
         if counts:
             stats = calculate_summary_stats(counts)
             range_str = format_range(stats)
-            distribution_section += f"**Cells per {fname}:** {range_str}  \n"
+
+            # Choose appropriate label based on factor type
+            if ftype == "experimental":
+                label = f"**Samples per {to_title_case(fname)}:** {range_str}"
+            elif ftype == "replicate":
+                label = f"**Cells per {to_title_case(fname)}:** {range_str}"
+            elif ftype == "classification":
+                label = f"**Cells per {to_title_case(fname)}:** {range_str}"
+            elif ftype == "batch":
+                label = f"**Samples per {to_title_case(fname)}:** {range_str}"
+            else:
+                label = f"**Units per {to_title_case(fname)}:** {range_str}"
+
+            distribution_section += f"{label}  \n"
 
     # Build Analysis Considerations section
     analysis_section = "\n## Analysis Considerations\n\n"
