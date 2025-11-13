@@ -20,6 +20,11 @@ When a user provides an h5ad file, follow these steps:
 7. **Visualize** the design structure
 8. **Present results** with clear summary and visualizations
 
+**Important Resources**:
+- **GRAMMAR.md**: Full edviz grammar specification with operator semantics, validation rules, and examples
+- **Helper scripts**: Located in `$SKILL_DIR/` (list_factors.sh, extract_categories.sh, etc.)
+- **Python scripts**: Located in `$SKILL_DIR/scripts/` (check_edviz.py, design_to_grammar.py)
+
 ## Step 0: Locate the Skill Directory
 
 CRITICAL: Before doing anything else, locate where the skill scripts are installed. The skill may be installed as a project skill or personal skill.
@@ -122,6 +127,15 @@ This script will:
 - Report success or failure
 
 If installation fails, the skill will continue with basic visualization (without edviz grammar output).
+
+**Grammar Reference**: The full edviz grammar specification is available in `$SKILL_DIR/GRAMMAR.md`. This document contains:
+- Formal EBNF grammar definition
+- Complete operator semantics and precedence rules
+- Factor specification syntax (balanced, unbalanced, approximate)
+- Validation rules and constraints
+- Extensive examples with parse trees
+
+You can read this file when you need to understand complex grammar constructs or validate edge cases.
 
 ### Step 4: Extract Category Information
 
@@ -251,6 +265,18 @@ For the hierarchical structure:
 
 After building the design hierarchy, convert the detected structure to edviz grammar format. This provides a standardized, machine-readable representation of the experimental design.
 
+**CRITICAL CONSTRAINTS** (see GRAMMAR.md for full details):
+1. **Classification is terminal**: The `:` operator MUST be the last operation in a chain. You CANNOT have operations after classification.
+   - ✅ Valid: `Sample(4) > Cell(5k) : CellType(6)`
+   - ❌ Invalid: `Cell(5k) : CellType(6) > Something`
+2. **Factor names become CamelCase**: `cell_type` → `CellType`, `time_point` → `TimePoint`
+3. **Every factor needs a size spec**: `Factor(n)` for balanced, `Factor[n1|n2|...]` for unbalanced
+4. **Operator precedence** (highest to lowest): `()` > `:` > `>` > `×` > `≈≈`
+5. **Nesting vs Classification**:
+   - Use `>` when child instances are unique to parent (samples nested in genotypes)
+   - Use `:` when labeling/categorizing (cells classified into types)
+   - Classification does NOT multiply observation counts
+
 **Create a JSON structure** with the detected design information:
 
 **Example 1: Nested design** (samples within genotypes):
@@ -330,11 +356,19 @@ The script will automatically:
 - Convert factor names to CamelCase (required by edviz)
 - Detect balanced vs unbalanced designs
 - Choose correct operators (>, ×, :)
+- Validate grammar constraints
 
 This will output a grammar string like:
 ```
 Genotype(2) > Sample(4) : CellType(6)
 ```
+
+**When to consult GRAMMAR.md**:
+- Complex nested + crossed designs (e.g., `Hospital(4) > Patient(15) × Treatment(2)`)
+- Confounded factors that should be grouped with `{...}`
+- Unbalanced designs with varying counts per branch
+- Validation errors from edviz that need interpretation
+- Understanding why certain operator combinations are invalid
 
 **IMPORTANT**: The script automatically converts factor names to CamelCase (no spaces). For example:
 - `cell_type` → `CellType`
