@@ -41,10 +41,13 @@ Every factor you classify as `"type": "experimental"` in your JSON MUST appear b
 - If you're unsure how factors relate, use `×` (crossing) to connect them: `Factor1 × Factor2 > Sample`
 
 **Rule 3: Counts represent levels, not cells**
-In the JSON structure, "counts" for each factor category represent the number of units at the NEXT level down, NOT cells:
+In the JSON structure, "counts" for each factor category represent the number of units at the NEXT level down:
 - For experimental factors (treatment, genotype, etc.): counts = number of samples per category
-- For sample factors: counts = number of cells per sample
-- For cell_type (classification): counts = number of cells per type
+- For sample/replicate factors: **DO NOT include individual cell counts** - the grammar will be too verbose
+  - Instead, use a single number representing total samples, or omit counts and let grammar use approximate notation
+  - Example: For 38 samples, use `"counts": [38]` or just `"counts": []` → produces `Sample(38)` or `Sample(~38)`
+  - NEVER: `"counts": [2880, 2919, 1537, ...]` → produces `Sample[2880|2919|1537|...]` which is unreadable
+- For cell_type (classification): counts = number of cells per type (this is OK to be detailed)
 - Example: If "Hepatocyte" condition has 6 samples with varying cell counts, the count for "Hepatocyte" is 6 (samples), not the sum of cells
 
 **Important Resources**:
@@ -511,7 +514,7 @@ Note: genotype and timepoint are automatically crossed (no relationship needed) 
     },
     "sample": {
       "categories": ["sample_PBS_1", "sample_PBS_2", "sample_R848_1", "sample_R848_2", "sample_UNTX_1", "sample_UNTX_2"],
-      "counts": [2000, 2000, 2000, 2000, 2000, 2000],  // Number of cells per sample
+      "counts": [],  // Leave empty for samples - grammar will use Sample(6)
       "type": "replicate"
     },
     "cell_type": {
@@ -570,7 +573,7 @@ Result: `Condition[13110|5105|13345|14152|11074] > Sample(38)` ← Wrong! Uses c
     },
     "sample": {
       "categories": ["Hepatocyte_15weeks_Animal1_Capture1", ...],  // All 38 samples
-      "counts": [2880, 2919, ...],  // Cells per sample
+      "counts": [],  // LEAVE EMPTY - don't list cell counts per sample, too verbose
       "type": "replicate"
     },
     "cell_type": {

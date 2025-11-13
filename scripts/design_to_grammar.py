@@ -98,7 +98,7 @@ def format_factor_counts(factor_name: str, categories: List[str], counts: List[i
     Args:
         factor_name: Name of the factor
         categories: List of category names
-        counts: List of counts for each category
+        counts: List of counts for each category (empty list means use category count)
         approximate: Whether to use approximate notation
 
     Returns:
@@ -108,12 +108,18 @@ def format_factor_counts(factor_name: str, categories: List[str], counts: List[i
     # Convert to CamelCase for edviz compatibility (no spaces allowed)
     factor_name = to_camel_case(factor_name)
 
-    if is_balanced(counts):
+    # If counts is empty or just represents the number of categories, use balanced notation
+    if not counts or len(counts) == 0:
+        # No counts provided - use category count with approximate if large
+        count_str = format_count(n_categories, approximate=(n_categories >= 1000))
+        return f"{factor_name}({count_str})"
+    elif is_balanced(counts):
         # Use balanced notation: Factor(n)
         count_str = format_count(n_categories, approximate=False)
         return f"{factor_name}({count_str})"
     else:
         # Use unbalanced notation: Factor[n1|n2|n3]
+        # But avoid this for samples - too verbose
         count_strs = [format_count(c, approximate=approximate) for c in counts]
         return f"{factor_name}[{'|'.join(count_strs)}]"
 
