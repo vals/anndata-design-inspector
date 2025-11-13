@@ -23,11 +23,29 @@ When a user provides an h5ad file, follow these steps:
 10. **Generate experiment card** (markdown report documenting the design)
 11. **Present results** with clear summary and visualizations
 
-**FUNDAMENTAL RULE FOR GRAMMAR GENERATION:**
+**FUNDAMENTAL RULES FOR GRAMMAR GENERATION:**
+
+**Rule 1: Parse composite factors**
+If you identify that a factor encodes multiple experimental dimensions (e.g., "Condition" represents CellFraction × DietTimepoint):
+- DO NOT keep it as one combined factor in the JSON
+- PARSE it into separate factors: create `cell_fraction` and `diet_timepoint` as separate entries
+- Each parsed factor becomes `"type": "experimental"`
+- Example: If Condition has levels ["Hepatocyte_15weeks", "Hepatocyte_30weeks", "NPC_15weeks", "NPC_30weeks"], create two factors:
+  - `cell_fraction`: categories ["Hepatocyte", "NPC"]
+  - `diet_timepoint`: categories ["15weeks", "30weeks"]
+
+**Rule 2: All experimental factors must appear**
 Every factor you classify as `"type": "experimental"` in your JSON MUST appear by name in the final grammar string.
 - If you have CellFraction (experimental) and DietTimepoint (experimental), the grammar MUST contain both "CellFraction" and "DietTimepoint" (or their CamelCase versions)
 - NO EXCEPTIONS: Do not omit factors because they're "encoded in sample names" or "sample-level" - they still must appear
 - If you're unsure how factors relate, use `×` (crossing) to connect them: `Factor1 × Factor2 > Sample`
+
+**Rule 3: Counts represent levels, not cells**
+In the JSON structure, "counts" for each factor category represent the number of units at the NEXT level down, NOT cells:
+- For experimental factors (treatment, genotype, etc.): counts = number of samples per category
+- For sample factors: counts = number of cells per sample
+- For cell_type (classification): counts = number of cells per type
+- Example: If "Hepatocyte" condition has 6 samples with varying cell counts, the count for "Hepatocyte" is 6 (samples), not the sum of cells
 
 **Important Resources**:
 - **GRAMMAR.md**: Full edviz grammar specification with operator semantics, validation rules, and examples
@@ -240,9 +258,13 @@ After identifying all factors, analyze their names and categories to understand 
 
 4. **Does the factor encode multiple experimental dimensions?**
    - Look for patterns like: `ConditionA_Time1`, `ConditionA_Time2`, `ConditionB_Time1`, `ConditionB_Time2`
-   - Examples: `DietTimepoint`, `TreatmentDose`, `GenotypeAge`
+   - Examples: `DietTimepoint`, `TreatmentDose`, `GenotypeAge`, `Condition` with levels like "Hepatocyte_15weeks"
    - These represent crossing of TWO factors that BOTH must appear in the grammar
-   - When building relationships, consider if you should parse into separate factors or keep combined
+   - **ACTION REQUIRED**: You MUST parse these into separate factors in your JSON structure
+   - Do NOT keep them as a single combined factor - the grammar will be incorrect
+   - Example: "Condition" with 7 levels like "Hepatocyte_15weeks", "Hepatocyte_30weeks", "NPC_15weeks", etc.
+     - Parse into: `cell_fraction` with 2 categories ["Hepatocyte", "NPC"]
+     - And: `diet_timepoint` with categories ["15weeks", "30weeks", "Chow", etc.]
 
 **Present a brief experimental context summary:**
 ```
@@ -370,10 +392,23 @@ Determine the nesting structure from most general to most specific.
 - `diet × timepoint > sample` (crossed factors, samples in each diet×time combination)
 - `batch > genotype × treatment > sample` (mixed: nested + crossed)
 
-**If you have a factor like "DietTimepoint" that encodes multiple dimensions:**
-- Option 1: Keep it as one factor: `DietTimepoint(4) > Sample`
-- Option 2: Parse it into separate factors: `Diet(2) × Timepoint(2) > Sample`
-- Choose based on how the data is actually structured
+**If you have a factor like "DietTimepoint" or "Condition" that encodes multiple dimensions:**
+- You MUST parse it into separate factors in your JSON
+- Example: "Condition" with levels ["Hepatocyte_15weeks", "Hepatocyte_30weeks", "NPC_15weeks", "NPC_30weeks", "NPC_Chow"]
+- Create TWO factors in JSON:
+  ```json
+  "cell_fraction": {
+    "categories": ["Hepatocyte", "NPC"],
+    "counts": [count_samples_in_Hepatocyte, count_samples_in_NPC],
+    "type": "experimental"
+  },
+  "diet_timepoint": {
+    "categories": ["15weeks", "30weeks", "Chow"],
+    "counts": [count_samples_at_15weeks, count_samples_at_30weeks, count_samples_at_Chow],
+    "type": "experimental"
+  }
+  ```
+- Then specify their relationship: crossed if all combos exist, or note unbalanced
 
 For the hierarchical structure:
 1. Identify the top-level factor (usually: genotype, treatment, condition, batch)
@@ -401,6 +436,13 @@ After building the design hierarchy, convert the detected structure to edviz gra
    - Use `>` when child instances are unique to parent (samples nested in genotypes)
    - Use `:` when labeling/categorizing (cells classified into types)
    - Classification does NOT multiply observation counts
+
+**Create a JSON structure** with the detected design information.
+
+**CRITICAL NOTES ON JSON STRUCTURE:**
+1. **Parse composite factors**: If a factor encodes multiple dimensions (e.g., "Condition" = CellFraction × DietTimepoint), create separate entries for each dimension
+2. **Counts are NOT cell counts**: For experimental factors, counts = number of samples/replicates per category. For samples, counts = number of cells per sample.
+3. **Use categorical factor analysis**: Look at how the categories are structured to determine what they encode
 
 **Create a JSON structure** with the detected design information:
 
@@ -464,17 +506,17 @@ Note: genotype and timepoint are automatically crossed (no relationship needed) 
   "factors": {
     "treatment": {
       "categories": ["PBS", "R848", "UNTX"],
-      "counts": [4000, 4000, 4000],
+      "counts": [2, 2, 2],  // Number of samples per treatment, NOT cells
       "type": "experimental"
     },
     "sample": {
       "categories": ["sample_PBS_1", "sample_PBS_2", "sample_R848_1", "sample_R848_2", "sample_UNTX_1", "sample_UNTX_2"],
-      "counts": [2000, 2000, 2000, 2000, 2000, 2000],
+      "counts": [2000, 2000, 2000, 2000, 2000, 2000],  // Number of cells per sample
       "type": "replicate"
     },
     "cell_type": {
       "categories": ["T_cell", "B_cell", "Myeloid"],
-      "counts": [4000, 4000, 4000],
+      "counts": [4000, 4000, 4000],  // Number of cells per type
       "type": "classification"
     }
   },
@@ -493,7 +535,58 @@ Note: genotype and timepoint are automatically crossed (no relationship needed) 
   }
 }
 ```
-Grammar: `Treatment(3) > Sample(6) : CellType(3)` or `Treatment(3) > Sample(2) : CellType(3)` depending on balanced replicates
+Grammar: `Treatment(3) > Sample(2) : CellType(3)`
+
+**Example 4: WRONG vs RIGHT - Composite factor parsing** (liver study with CellFraction × DietTimepoint):
+
+❌ **WRONG - Keeping composite factor as-is:**
+```json
+{
+  "factors": {
+    "condition": {
+      "categories": ["Hepatocyte_15weeks", "Hepatocyte_30weeks", "NPC_15weeks", "NPC_30weeks", "NPC_Chow"],
+      "counts": [13110, 5105, 13345, 14152, 11074],  // WRONG: these are cell counts!
+      "type": "experimental"
+    },
+    "sample": {"categories": [...], "counts": [...], "type": "replicate"}
+  }
+}
+```
+Result: `Condition[13110|5105|13345|14152|11074] > Sample(38)` ← Wrong! Uses cell counts, doesn't show structure
+
+✅ **RIGHT - Parsing into component factors:**
+```json
+{
+  "factors": {
+    "cell_fraction": {
+      "categories": ["Hepatocyte", "NPC"],
+      "counts": [16, 22],  // Number of samples: 16 Hepatocyte samples, 22 NPC samples
+      "type": "experimental"
+    },
+    "diet_timepoint": {
+      "categories": ["15weeks", "30weeks", "Chow"],
+      "counts": [12, 12, 6],  // Approximate samples per timepoint (may be unbalanced)
+      "type": "experimental"
+    },
+    "sample": {
+      "categories": ["Hepatocyte_15weeks_Animal1_Capture1", ...],  // All 38 samples
+      "counts": [2880, 2919, ...],  // Cells per sample
+      "type": "replicate"
+    },
+    "cell_type": {
+      "categories": ["Hepatocytes", "Endothelial", "Kupffer", ...],
+      "counts": [...],  // Cells per type
+      "type": "classification"
+    }
+  },
+  "relationships": [
+    {"parent": "cell_fraction", "child": "sample", "type": "nested"},
+    {"parent": "diet_timepoint", "child": "sample", "type": "nested"},
+    {"factor": "sample", "classifier": "cell_type", "type": "classification"}
+  ]
+}
+```
+Result: `CellFraction(2) × DietTimepoint(3) > Sample(~38) : CellType(13)` ← Correct!
 
 **Factor types**:
 - `experimental`: Treatment/condition factors that represent experimental manipulations (genotype, treatment, timepoint, tissue, etc.). These MUST always appear in the grammar.
