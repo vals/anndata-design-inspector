@@ -1,6 +1,6 @@
 ---
 name: anndata-design-inspector
-description: Inspects and visualizes experimental designs from AnnData .h5ad single-cell data files. Automatically extracts factors (genotypes, samples, cell types), detects design structure (nested vs crossed), generates edviz grammar notation, creates professional visualizations, and produces experiment card documentation. Use when analyzing h5ad files to understand experimental design structure.
+description: Inspects and visualizes experimental designs from AnnData .h5ad single-cell data files. Automatically detects species from gene naming patterns, extracts factors (genotypes, samples, cell types), detects design structure (nested vs crossed), generates edviz grammar notation, creates professional visualizations, and produces experiment card documentation. Use when analyzing h5ad files to understand experimental design structure.
 allowed-tools: Bash, Read, Glob, Grep
 ---
 
@@ -15,11 +15,12 @@ When a user provides an h5ad file, follow these steps:
 2. **Validate file** and check HDF5 tools are installed
 3. **Extract factors** using list_factors.sh
 4. **Get categories & counts** for each factor using extract_categories.sh and count_cells.sh
-5. **Detect design structure** using detect_nesting.sh
-6. **Generate edviz grammar** using design_to_grammar.py
-7. **Visualize** the design structure
-8. **Generate experiment card** (markdown report documenting the design)
-9. **Present results** with clear summary and visualizations
+5. **Detect species** by exploring .var columns and analyzing gene naming patterns
+6. **Detect design structure** using detect_nesting.sh
+7. **Generate edviz grammar** using design_to_grammar.py
+8. **Visualize** the design structure
+9. **Generate experiment card** (markdown report documenting the design)
+10. **Present results** with clear summary and visualizations
 
 **Important Resources**:
 - **GRAMMAR.md**: Full edviz grammar specification with operator semantics, validation rules, and examples
@@ -163,11 +164,44 @@ h5ls <file_path>/obs/_index
 
 The number in curly braces `{N}` is the total cell count.
 
+### Step 5a: Detect Species from Gene Names
+
+Identify the organism by examining gene naming patterns in the .var slot.
+
+**Step 5a.1: List available columns in /var**
+```bash
+h5ls <file_path>/var
+```
+
+**Step 5a.2: Sample values from promising columns**
+
+Look for columns that might contain gene identifiers. Prioritize:
+- Columns with "symbol", "gene", "name" in the name
+- Then try "_index" or "index" columns
+
+For each promising column, extract a sample of ~20 values:
+```bash
+h5dump -d "/var/<column_name>" <file_path> 2>/dev/null | grep -oE '"[^"]+"' | tr -d '"' | head -20
+```
+
+**Step 5a.3: Analyze the samples and infer species**
+
+Look at the case patterns in the gene names:
+- **Human**: Uppercase gene names (ACTB, GAPDH, TP53, CD4, CD8A)
+- **Mouse**: Title case gene names (Actb, Gapdh, Tp53, Cd4, Cd8a)
+- **Zebrafish**: Lowercase gene names (actb, gapdh, tp53, cd4)
+- **Drosophila**: Mixed case gene names (Act5C, Gapdh, CG1234)
+
+Examine which pattern is most common across the samples. If the dominant pattern is >50% of genes, report that species. Otherwise report "unknown".
+
+Choose the column with the clearest gene naming pattern (prefer gene symbols over Ensembl IDs or numeric identifiers).
+
 ### Step 6: Summarize the Experimental Design
 
 After gathering all the information, present a clear summary:
 
 **Experimental Design Summary:**
+- Species: [detected species]
 - Total cells: [number]
 - Experimental factors found:
   - Factor 1: [name] ([N] levels: level1, level2, ...)
@@ -181,6 +215,7 @@ Identify the design type (e.g., "2×2 factorial design", "time series", "case-co
 ```
 Experimental Design for: filename.h5ad
 File size: XX MB
+Species: Mouse (Mus musculus)
 Total cells: 21,417
 
 Experimental Factors:
@@ -425,6 +460,7 @@ Build a JSON structure containing all the design information collected in previo
 ```json
 {
   "h5ad_file": "<file_path>",
+  "species": "<detected_species>",
   "total_cells": <total_cells>,
   "design_type": "<design_type>",
   "edviz_grammar": "<grammar_string_from_step_10>",

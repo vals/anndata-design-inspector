@@ -140,6 +140,7 @@ def generate_experiment_card(data: Dict[str, Any]) -> str:
     h5ad_file = data.get("h5ad_file", "unknown.h5ad")
     total_cells = data.get("total_cells", 0)
     design_type = data.get("design_type", "unknown")
+    species = data.get("species", "unknown")
     edviz_grammar = data.get("edviz_grammar", "")
     edviz_diagram = data.get("edviz_diagram", "")
     factors = data.get("factors", {})
@@ -154,6 +155,7 @@ def generate_experiment_card(data: Dict[str, Any]) -> str:
     frontmatter = f"""---
 analysis_date: "{analysis_date}"
 h5ad_file: "{h5ad_file}"
+species: "{species}"
 total_cells: {total_cells}
 design_type: "{design_type}"
 edviz_grammar: "{edviz_grammar}"
@@ -164,12 +166,23 @@ tool_version: "{tool_version}"
 """
 
     # Build Dataset Information section
+    # Map species to common names
+    species_names = {
+        "human": "Human (Homo sapiens)",
+        "mouse": "Mouse (Mus musculus)",
+        "zebrafish": "Zebrafish (Danio rerio)",
+        "drosophila": "Fruit fly (Drosophila melanogaster)",
+        "unknown": "Unknown"
+    }
+    species_display = species_names.get(species, species.title())
+
     dataset_section = f"""# Experimental Design Card
 
 ## Dataset Information
 
 **File:** {h5ad_file}
 **Analysis Date:** {analysis_date}
+**Species:** {species_display}
 **Total Cells:** {format_number(total_cells)}
 """
 
