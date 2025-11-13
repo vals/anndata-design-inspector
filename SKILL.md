@@ -687,6 +687,12 @@ print(design.ascii_diagram())
 - Crossed designs → Grid/table layout
 - Mixed designs → Combined visualization
 
+**CRITICAL**: SAVE the edviz output!
+- The ASCII diagram output from this command MUST be captured
+- You will need to include it in the experiment card JSON as `"edviz_diagram": "<the_full_ascii_output>"`
+- Do NOT create a new simplified diagram - use the EXACT output from edviz
+- Example: If edviz outputs a box with lines and symbols, that entire multi-line string goes into `edviz_diagram`
+
 **IMPORTANT**: Always use edviz for visualization. It was verified to be installed in Step 3a. Do NOT create manual ASCII trees or custom visualizations.
 
 **If edviz fails to render:**
@@ -694,7 +700,8 @@ print(design.ascii_diagram())
 2. Double-check your grammar string for syntax errors
 3. Try removing outer parentheses if present: `(A × B) > C` → test with just the inner parts
 4. Still include the grammar string in the experiment card even if visualization fails
-5. Note in your output that edviz rendering failed
+5. Set `"edviz_diagram": "(Diagram generation failed)"` in the JSON
+6. Note in your output that edviz rendering failed
 
 ### Step 11a: Generate Experiment Card
 
@@ -704,6 +711,8 @@ REQUIRED: After generating the edviz visualization, automatically create an expe
 
 Build a JSON structure containing all the design information collected in previous steps:
 
+**CRITICAL**: The `edviz_diagram` field must contain the EXACT ASCII output from Step 11's edviz visualization. Do NOT create a new simplified version - copy the full multi-line ASCII art from the edviz output.
+
 ```json
 {
   "h5ad_file": "<file_path>",
@@ -711,7 +720,7 @@ Build a JSON structure containing all the design information collected in previo
   "total_cells": <total_cells>,
   "design_type": "<design_type>",
   "edviz_grammar": "<grammar_string_from_step_10>",
-  "edviz_diagram": "<ascii_diagram_from_step_11>",
+  "edviz_diagram": "<EXACT_ascii_diagram_output_from_step_11>",
   "experimental_context": {
     "experiment_type": "<inferred experiment type>",
     "research_question": "<inferred research question>",
@@ -739,6 +748,30 @@ Build a JSON structure containing all the design information collected in previo
 ```
 
 **Generate the experiment card:**
+
+**IMPORTANT**: Before creating the JSON, make sure you have:
+1. The edviz ASCII diagram from Step 11 (the full multi-line output with boxes and symbols)
+2. The grammar string from Step 10
+3. All factor information from previous steps
+
+**Example of proper edviz_diagram field:**
+If edviz output was:
+```
+┌──────────────────── Design Structure ────────────────────┐
+│                                                          │
+│ CellFraction([16 | 22])  ────×──── DietTimepoint([12 | 12
+│                                            | 2 | 12])   │
+│                     ↓                                    │
+│               Sample(38)                                 │
+│                     :                                    │
+│              CellType(13)                                │
+└──────────────────────────────────────────────────────────┘
+```
+
+Then your JSON should have:
+```json
+"edviz_diagram": "┌──────────────────── Design Structure ────────────────────┐\n│                                                          │\n│ CellFraction([16 | 22])  ────×──── DietTimepoint([12 | 12\n│                                            | 2 | 12])   │\n│                     ↓                                    │\n│               Sample(38)                                 │\n│                     :                                    │\n│              CellType(13)                                │\n└──────────────────────────────────────────────────────────┘"
+```
 
 ```bash
 # Create output filename based on input h5ad file
