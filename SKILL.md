@@ -18,10 +18,16 @@ When a user provides an h5ad file, follow these steps:
 5. **Detect species** by exploring .var columns and analyzing gene naming patterns
 6. **Reason about experimental factors** - understand biological/experimental meaning
 7. **Detect design structure** using detect_nesting.sh
-8. **Generate edviz grammar** using design_to_grammar.py (include ALL experimental factors)
+8. **Generate edviz grammar** using design_to_grammar.py (**CRITICAL: EVERY experimental factor MUST appear**)
 9. **Visualize** the design structure
 10. **Generate experiment card** (markdown report documenting the design)
 11. **Present results** with clear summary and visualizations
+
+**FUNDAMENTAL RULE FOR GRAMMAR GENERATION:**
+Every factor you classify as `"type": "experimental"` in your JSON MUST appear by name in the final grammar string.
+- If you have CellFraction (experimental) and DietTimepoint (experimental), the grammar MUST contain both "CellFraction" and "DietTimepoint" (or their CamelCase versions)
+- NO EXCEPTIONS: Do not omit factors because they're "encoded in sample names" or "sample-level" - they still must appear
+- If you're unsure how factors relate, use `×` (crossing) to connect them: `Factor1 × Factor2 > Sample`
 
 **Important Resources**:
 - **GRAMMAR.md**: Full edviz grammar specification with operator semantics, validation rules, and examples
@@ -219,6 +225,7 @@ After identifying all factors, analyze their names and categories to understand 
    - Tissue/organ type (e.g., liver, brain, tumor)
    - Cell line or organism ID
    - Technical batch information
+   - **Composite factors** (e.g., DietTimepoint with levels like "HFHS_15weeks", "Chow_52weeks") - note these encode MULTIPLE dimensions
 
 2. **What is the biological/experimental meaning?**
    - Look up unfamiliar terms (e.g., "R848" is a TLR7/8 agonist used to stimulate immune response)
@@ -230,6 +237,12 @@ After identifying all factors, analyze their names and categories to understand 
    - **Replicates/samples** (sample_1, sample_2, mouse_A, mouse_B) → Include in grammar as nested level
    - **Technical factors** (batch, sequencing_run) → Include if relevant to design
    - **Classification/measurement** (cell_type, cluster, annotation) → Use `:` operator
+
+4. **Does the factor encode multiple experimental dimensions?**
+   - Look for patterns like: `ConditionA_Time1`, `ConditionA_Time2`, `ConditionB_Time1`, `ConditionB_Time2`
+   - Examples: `DietTimepoint`, `TreatmentDose`, `GenotypeAge`
+   - These represent crossing of TWO factors that BOTH must appear in the grammar
+   - When building relationships, consider if you should parse into separate factors or keep combined
 
 **Present a brief experimental context summary:**
 ```
@@ -335,14 +348,32 @@ This returns either "nested" or "crossed" based on naming pattern analysis.
 - If samples are nested in treatments: `Treatment(3) > Sample(n per treatment)`
 - If sample names encode treatment, the treatment factor should still appear explicitly in the grammar
 
+**Common mistake - Timepoints/Diets encoded in sample names:**
+If you have factors like `DietTimepoint` with levels like `HFHS_15weeks`, `HFHS_52weeks`, `Chow_15weeks`, `Chow_52weeks`:
+- This represents TWO crossed factors: Diet × Timepoint
+- WRONG: `Sample(~38) : CellType(13)` (omits both factors)
+- RIGHT: `Diet(2) × Timepoint(2) > Sample(~38) : CellType(13)`
+- Or if diet/time are combined: `DietTimepoint(4) > Sample(~38) : CellType(13)`
+
 ### Step 9: Build Design Hierarchy
 
-Determine the nesting structure from most general to most specific:
+Determine the nesting structure from most general to most specific.
+
+**CRITICAL**: All experimental factors MUST be represented. If you have multiple experimental factors:
+1. Determine if they are crossed (all combinations exist) or nested (hierarchical)
+2. Check if samples are unique to combinations of factors or shared across
 
 **Common patterns**:
 - `genotype > sample` (samples nested in genotype)
+- `genotype × treatment > sample` (2 factors fully crossed, samples in each combination)
 - `treatment > timepoint > sample` (3-level hierarchy)
+- `diet × timepoint > sample` (crossed factors, samples in each diet×time combination)
 - `batch > genotype × treatment > sample` (mixed: nested + crossed)
+
+**If you have a factor like "DietTimepoint" that encodes multiple dimensions:**
+- Option 1: Keep it as one factor: `DietTimepoint(4) > Sample`
+- Option 2: Parse it into separate factors: `Diet(2) × Timepoint(2) > Sample`
+- Choose based on how the data is actually structured
 
 For the hierarchical structure:
 1. Identify the top-level factor (usually: genotype, treatment, condition, batch)
@@ -352,6 +383,12 @@ For the hierarchical structure:
 ### Step 10: Generate edviz Grammar String
 
 After building the design hierarchy, convert the detected structure to edviz grammar format. This provides a standardized, machine-readable representation of the experimental design.
+
+**CRITICAL PRE-CHECK**: Before generating grammar, verify that ALL factors marked as "experimental" type will be included:
+- Review your JSON structure
+- List all factors with `"type": "experimental"`
+- Each one MUST appear in the grammar string
+- If you're unsure how to include a factor, use `×` (crossing) by default rather than omitting it
 
 **CRITICAL CONSTRAINTS** (see GRAMMAR.md for full details):
 1. **Classification is terminal**: The `:` operator MUST be the last operation in a chain. You CANNOT have operations after classification.
@@ -494,6 +531,12 @@ The script will automatically:
 - Detect balanced vs unbalanced designs
 - Choose correct operators (>, ×, :)
 - Validate grammar constraints
+
+**POST-CHECK after getting grammar string**:
+1. Count how many factors with `"type": "experimental"` are in your JSON
+2. Verify that each one appears in the grammar string
+3. If any are missing, revise your relationships JSON and regenerate
+4. Example: If you have CellFraction (experimental) and DietTimepoint (experimental), BOTH must appear in the grammar
 
 This will output a grammar string like:
 ```
