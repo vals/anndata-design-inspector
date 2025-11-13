@@ -33,15 +33,12 @@ When a user provides an h5ad file, follow these steps:
 CRITICAL: Before doing anything else, locate where the skill scripts are installed. The skill may be installed as a project skill or personal skill.
 
 ```bash
-# Find the skill directory
-SKILL_DIR=""
+# Find the skill directory and expand to full path
 if [ -d ".claude/skills/anndata-design-inspector" ]; then
-    SKILL_DIR="$(pwd)/.claude/skills/anndata-design-inspector"
+    SKILL_DIR="$(cd .claude/skills/anndata-design-inspector && pwd)"
 elif [ -d "$HOME/.claude/skills/anndata-design-inspector" ]; then
-    SKILL_DIR="$HOME/.claude/skills/anndata-design-inspector"
-fi
-
-if [ -z "$SKILL_DIR" ] || [ ! -d "$SKILL_DIR" ]; then
+    SKILL_DIR="$(cd $HOME/.claude/skills/anndata-design-inspector && pwd)"
+else
     echo "Error: Cannot locate anndata-design-inspector skill directory" >&2
     exit 1
 fi
@@ -49,7 +46,12 @@ fi
 echo "Skill directory: $SKILL_DIR"
 ```
 
-**IMPORTANT**: All subsequent script references in this skill MUST use `$SKILL_DIR/script_name.sh` format. Store this path and use it throughout the analysis.
+This will output the full absolute path (e.g., `/Users/username/.claude/skills/anndata-design-inspector`).
+
+**IMPORTANT**:
+- Store this full path and use it literally in all subsequent commands
+- Do NOT use `$SKILL_DIR` or `$HOME` in later commands - use the actual expanded path
+- Example: If the output is `/Users/val/.claude/skills/anndata-design-inspector`, then use that exact path in all script calls
 
 ## Prerequisites: Check for Required Tools
 
@@ -105,8 +107,10 @@ Expected groups in AnnData files:
 
 Use the helper script to list all categorical factors:
 ```bash
-"$SKILL_DIR/list_factors.sh" <file_path>
+<SKILL_DIR>/list_factors.sh <file_path>
 ```
+
+Replace `<SKILL_DIR>` with the actual path from Step 0.
 
 This will output all categorical variables (Groups in /obs) such as:
 - Sample IDs
@@ -121,8 +125,10 @@ This will output all categorical variables (Groups in /obs) such as:
 Before proceeding with detailed extraction, ensure the edviz package is available for grammar-based visualization:
 
 ```bash
-python "$SKILL_DIR/scripts/check_edviz.py"
+python <SKILL_DIR>/scripts/check_edviz.py
 ```
+
+Replace `<SKILL_DIR>` with the actual path from Step 0.
 
 This script will:
 - Check if edviz is already installed
@@ -144,8 +150,10 @@ You can read this file when you need to understand complex grammar constructs or
 
 For each categorical factor found, extract its category names:
 ```bash
-"$SKILL_DIR/extract_categories.sh" <file_path> <factor_name>
+<SKILL_DIR>/extract_categories.sh <file_path> <factor_name>
 ```
+
+Replace `<SKILL_DIR>` with the actual path from Step 0.
 
 This extracts and cleans the category labels for the specified factor.
 
@@ -153,8 +161,10 @@ This extracts and cleans the category labels for the specified factor.
 
 Get cell counts for each category in a factor:
 ```bash
-"$SKILL_DIR/count_cells.sh" <file_path> <factor_name>
+<SKILL_DIR>/count_cells.sh <file_path> <factor_name>
 ```
+
+Replace `<SKILL_DIR>` with the actual path from Step 0.
 
 This outputs category:count pairs (e.g., "KeapKO_tumor_1:5103").
 
@@ -295,8 +305,10 @@ h5dump -d "/obs/<factor_name>/codes" <file_path> 2>/dev/null | grep -A 50 "DATA 
 Use the helper script to detect whether factors are nested or crossed:
 
 ```bash
-"$SKILL_DIR/detect_nesting.sh" <file_path> <factor_a> <factor_b>
+<SKILL_DIR>/detect_nesting.sh <file_path> <factor_a> <factor_b>
 ```
+
+Replace `<SKILL_DIR>` with the actual path from Step 0.
 
 This returns either "nested" or "crossed" based on naming pattern analysis.
 
@@ -464,7 +476,17 @@ Grammar: `Treatment(3) > Sample(6) : CellType(3)` or `Treatment(3) > Sample(2) :
 CRITICAL: You MUST use the design_to_grammar.py script to generate the grammar string. Do NOT manually construct grammar strings.
 
 ```bash
-echo '<json_string>' | python "$SKILL_DIR/scripts/design_to_grammar.py" -
+echo '<json_string>' | python <SKILL_DIR>/scripts/design_to_grammar.py -
+```
+
+Replace `<SKILL_DIR>` with the actual path from Step 0.
+
+**Alternative if piping causes issues:**
+```bash
+cat > /tmp/design.json << 'EOF'
+<json_content>
+EOF
+python <SKILL_DIR>/scripts/design_to_grammar.py /tmp/design.json
 ```
 
 The script will automatically:
@@ -577,8 +599,10 @@ Build a JSON structure containing all the design information collected in previo
 OUTPUT_FILE="${H5AD_FILE%.h5ad}_experiment_card.md"
 
 # Generate the card
-echo '<json_string>' | python "$SKILL_DIR/scripts/generate_experiment_card.py" - "$OUTPUT_FILE"
+echo '<json_string>' | python <SKILL_DIR>/scripts/generate_experiment_card.py - "$OUTPUT_FILE"
 ```
+
+Replace `<SKILL_DIR>` with the actual path from Step 0.
 
 The experiment card will be saved alongside the h5ad file with the naming convention: `<filename>_experiment_card.md`
 
