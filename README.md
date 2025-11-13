@@ -222,7 +222,7 @@ Clone this repository into your project's `.claude/skills/` directory:
 ```bash
 mkdir -p .claude/skills
 cd .claude/skills
-git clone https://github.com/YOUR_USERNAME/anndata-design-inspector.git
+git clone https://github.com/vals/anndata-design-inspector.git
 ```
 
 ### As a Personal Skill
@@ -231,7 +231,7 @@ Clone into your personal Claude skills directory:
 ```bash
 mkdir -p ~/.claude/skills
 cd ~/.claude/skills
-git clone https://github.com/YOUR_USERNAME/anndata-design-inspector.git
+git clone https://github.com/vals/anndata-design-inspector.git
 ```
 
 The skill will be automatically available in Claude Code after installation.
